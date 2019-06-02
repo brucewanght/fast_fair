@@ -12,6 +12,7 @@
 #include <climits>
 #include <future>
 #include <mutex>
+#include <queue>
 
 #define PAGESIZE 512
 
@@ -80,6 +81,7 @@ private:
 
 public:
     btree();
+    ~btree();
     void setNewRoot(char *);
     void btree_insert(entry_key_t, char*);
     void btree_insert_internal(char *, entry_key_t, char *, uint32_t);
@@ -173,8 +175,21 @@ public:
     void *operator new(size_t size)
     {
         void *ret;
-        posix_memalign(&ret, 64, size);
+        int error = posix_memalign(&ret, 64, size);
+
+        if(error)
+            fprintf (stderr, "posix_memalign: %s\n", strerror (error));
+
+        memset(ret, 0, size);
         return ret;
+    }
+
+    void operator delete(void* mem)
+    {
+        if(!mem)
+            return;
+        free(mem);
+        mem = nullptr;
     }
 
     inline int count()
@@ -931,9 +946,9 @@ public:
     void print()
     {
         if(hdr.leftmost_ptr == NULL)
-            printf("[%d] leaf %x \n", this->hdr.level, this);
+            printf("[%d] leaf %p \n", this->hdr.level, this);
         else
-            printf("[%d] internal %x \n", this->hdr.level, this);
+            printf("[%d] internal %p \n", this->hdr.level, this);
         printf("last_index: %d\n", hdr.last_index);
         printf("switch_counter: %d\n", hdr.switch_counter);
         printf("search direction: ");
@@ -943,12 +958,12 @@ public:
             printf("<-\n");
 
         if(hdr.leftmost_ptr != NULL)
-            printf("%x ", hdr.leftmost_ptr);
+            printf("%p ", hdr.leftmost_ptr);
 
         for(int i = 0; records[i].ptr != NULL; ++i)
-            printf("%ld,%x ", records[i].key, records[i].ptr);
+            printf("%lu,%p ", records[i].key, records[i].ptr);
 
-        printf("%x ", hdr.sibling_ptr);
+        printf("%p ", hdr.sibling_ptr);
 
         printf("\n");
     }
@@ -982,6 +997,42 @@ btree::btree()
     height = 1;
 }
 
+btree::~btree()
+{
+	/*
+    printf("debug %s, line %d: root %p, free btree!\n",
+           __FUNCTION__, __LINE__, root);
+	*/
+    if(root != nullptr)
+    {
+        //use a queue to traverse tree nodes
+        queue<page*> nodeQueue;
+        //put root node to queue
+        nodeQueue.push((page*)root);
+        while(nodeQueue.size())
+        {
+            page* p = nodeQueue.front();
+            if(p->hdr.leftmost_ptr != nullptr)
+            {
+                //printf("debug %s, line %d: page %p is internal\n", __FUNCTION__, __LINE__, p);
+                //if this page is an internal node, we need to add all of its
+                //children to queue
+                page *q = p->hdr.leftmost_ptr;
+                while(q)
+                {
+                    //printf("debug %s, line %d: push page %p to queue\n", __FUNCTION__, __LINE__, q);
+                    nodeQueue.push(q);
+                    q = q->hdr.sibling_ptr;
+                }
+            }
+            //printf("debug %s, line %d: page %p is leaf\n", __FUNCTION__, __LINE__, p);
+            nodeQueue.pop();
+            delete p;
+            p = nullptr;
+        }
+    }
+}
+
 void btree::setNewRoot(char *new_root)
 {
     this->root = (char*)new_root;
@@ -1010,7 +1061,7 @@ char *btree::btree_search(entry_key_t key)
 
     if(!t || (char *)t != (char *)key)
     {
-        printf("NOT FOUND %lu, t = %x\n", key, t);
+        printf("NOT FOUND %lu, t = %p\n", key, t);
         return NULL;
     }
 
@@ -1074,6 +1125,11 @@ void btree::btree_delete(entry_key_t key)
         {
             btree_delete(key);
         }
+		if(p->hdr.is_deleted)
+		{
+			//delete page
+			delete p;
+		}
     }
     else
     {
@@ -1114,6 +1170,11 @@ void btree::btree_delete_internal
                     *deleted_key = p->records[i].key;
                     *left_sibling = p->hdr.leftmost_ptr;
                     p->remove(this, *deleted_key, false, false);
+		            if(p->hdr.is_deleted)
+		            {
+		            	//delete page
+		            	delete p;
+		            }
                     break;
                 }
             }
@@ -1124,6 +1185,11 @@ void btree::btree_delete_internal
                     *deleted_key = p->records[i].key;
                     *left_sibling = (page *)p->records[i - 1].ptr;
                     p->remove(this, *deleted_key, false, false);
+		            if(p->hdr.is_deleted)
+		            {
+		            	//delete page
+		            	delete p;
+		            }
                     break;
                 }
             }
@@ -1158,7 +1224,7 @@ void btree::printAll()
 {
     int total_keys = 0;
     page *leftmost = (page *)root;
-    printf("root: %x\n", root);
+    printf("root: %p\n", root);
     if(root)
     {
         do
