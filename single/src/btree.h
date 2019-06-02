@@ -999,10 +999,10 @@ btree::btree()
 
 btree::~btree()
 {
-	/*
+    /*
     printf("debug %s, line %d: root %p, free btree!\n",
            __FUNCTION__, __LINE__, root);
-	*/
+    */
     if(root != nullptr)
     {
         //use a queue to traverse tree nodes
@@ -1125,11 +1125,11 @@ void btree::btree_delete(entry_key_t key)
         {
             btree_delete(key);
         }
-		if(p->hdr.is_deleted)
-		{
-			//delete page
-			delete p;
-		}
+        if(p->hdr.is_deleted)
+        {
+            //delete page
+            delete p;
+        }
     }
     else
     {
@@ -1170,11 +1170,11 @@ void btree::btree_delete_internal
                     *deleted_key = p->records[i].key;
                     *left_sibling = p->hdr.leftmost_ptr;
                     p->remove(this, *deleted_key, false, false);
-		            if(p->hdr.is_deleted)
-		            {
-		            	//delete page
-		            	delete p;
-		            }
+                    if(p->hdr.is_deleted)
+                    {
+                        //delete page
+                        delete p;
+                    }
                     break;
                 }
             }
@@ -1185,11 +1185,11 @@ void btree::btree_delete_internal
                     *deleted_key = p->records[i].key;
                     *left_sibling = (page *)p->records[i - 1].ptr;
                     p->remove(this, *deleted_key, false, false);
-		            if(p->hdr.is_deleted)
-		            {
-		            	//delete page
-		            	delete p;
-		            }
+                    if(p->hdr.is_deleted)
+                    {
+                        //delete page
+                        delete p;
+                    }
                     break;
                 }
             }
