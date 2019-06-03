@@ -16,7 +16,7 @@ void clear_cache()
 int main(int argc, char** argv)
 {
     // Parsing arguments
-    int num_data = 0;
+    uint64_t num_data = 0;
     int n_threads = 1;
     float selection_ratio = 0.0f;
     char *input_path = (char *)std::string("../sample_input.txt").data();
@@ -62,7 +62,7 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
-    for(int i = 0; i < num_data; ++i)
+    for(uint64_t i = 0; i < num_data; ++i)
         ifs >> keys[i];
 
     ifs.close();
@@ -70,7 +70,7 @@ int main(int argc, char** argv)
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
 
-        for(int i = 0; i < num_data; ++i)
+        for(uint64_t i = 0; i < num_data; ++i)
         {
             bt->btree_insert(keys[i], (char *)keys[i]);
         }
@@ -90,7 +90,7 @@ int main(int argc, char** argv)
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
 
-        for(int i = 0; i < num_data; ++i)
+        for(uint64_t i = 0; i < num_data; ++i)
         {
             bt->btree_search(keys[i]);
         }
@@ -110,7 +110,7 @@ int main(int argc, char** argv)
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
 
-        for(int i = 0; i < num_data; ++i)
+        for(uint64_t i = 0; i < num_data; ++i)
         {
             bt->btree_delete(keys[i]);
         }
