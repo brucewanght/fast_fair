@@ -1,9 +1,8 @@
 #include "btree.h"
 
-void clear_cache()
+void clear_cache(uint64_t size)
 {
     // Remove cache
-    int size = 256 * 1024 * 1024;
     char *garbage = new char[size];
     for(int i = 0; i < size; ++i)
         garbage[i] = i;
@@ -27,7 +26,7 @@ int main(int argc, char** argv)
         switch(c)
         {
         case 'n':
-            num_data = atoi(optarg);
+            num_data = atoll(optarg);
             break;
         case 'w':
             write_latency_in_ns = atol(optarg);
@@ -66,7 +65,6 @@ int main(int argc, char** argv)
         ifs >> keys[i];
 
     ifs.close();
-
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
 
@@ -85,8 +83,7 @@ int main(int argc, char** argv)
                (double)elapsed_time / num_data);
     }
 
-    clear_cache();
-
+    clear_cache(num_data);
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
 
@@ -105,8 +102,7 @@ int main(int argc, char** argv)
                (double)elapsed_time / num_data);
     }
 
-    clear_cache();
-
+    clear_cache(num_data);
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
 
