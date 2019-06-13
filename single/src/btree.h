@@ -16,7 +16,7 @@
 
 #define PAGESIZE 512
 
-#define CPU_FREQ_MHZ (3500)
+#define CPU_FREQ_MHZ (3900)
 #define DELAY_IN_NS (1000)
 #define CACHE_LINE_SIZE 64
 #define QUERY_NUM 25
@@ -999,38 +999,6 @@ btree::btree()
 
 btree::~btree()
 {
-    /*
-    printf("debug %s, line %d: root %p, free btree!\n",
-           __FUNCTION__, __LINE__, root);
-    */
-    if(root != nullptr)
-    {
-        //use a queue to traverse tree nodes
-        queue<page*> nodeQueue;
-        //put root node to queue
-        nodeQueue.push((page*)root);
-        while(nodeQueue.size())
-        {
-            page* p = nodeQueue.front();
-            if(p->hdr.leftmost_ptr != nullptr)
-            {
-                //printf("debug %s, line %d: page %p is internal\n", __FUNCTION__, __LINE__, p);
-                //if this page is an internal node, we need to add all of its
-                //children to queue
-                page *q = p->hdr.leftmost_ptr;
-                while(q)
-                {
-                    //printf("debug %s, line %d: push page %p to queue\n", __FUNCTION__, __LINE__, q);
-                    nodeQueue.push(q);
-                    q = q->hdr.sibling_ptr;
-                }
-            }
-            //printf("debug %s, line %d: page %p is leaf\n", __FUNCTION__, __LINE__, p);
-            nodeQueue.pop();
-            delete p;
-            p = nullptr;
-        }
-    }
 }
 
 void btree::setNewRoot(char *new_root)
@@ -1123,7 +1091,9 @@ void btree::btree_delete(entry_key_t key)
     {
         if(!p->remove(this, key))
         {
-            btree_delete(key);
+             printf("debug %s, line %d: page %p, delete key %lu ... NOT FOUND\n",
+                    __FUNCTION__, __LINE__, p, key);
+	
         }
         if(p->hdr.is_deleted)
         {
