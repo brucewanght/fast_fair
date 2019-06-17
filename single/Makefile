@@ -3,7 +3,8 @@
 
 LIBS=-lrt -lm
 INCLUDES=-I./include
-CFLAGS=-O3 -std=c++11 -pg -lc
+#CFLAGS=-std=c++11 -g -pg -lc
+CFLAGS=-O3 -std=c++11 -g -pg -lc
 
 output = btree 
 
