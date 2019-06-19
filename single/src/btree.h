@@ -14,7 +14,7 @@
 #include <mutex>
 #include <queue>
 
-#define PAGESIZE 512
+#define PAGESIZE 1024
 
 #define CPU_FREQ_MHZ (3900)
 #define DELAY_IN_NS (1000)

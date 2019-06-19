@@ -48,6 +48,7 @@ int main(int argc, char** argv)
 
     btree* bt;
     bt = new btree();
+	entry_key_t i = 0;
 
     struct timespec start, end;
 
@@ -63,19 +64,19 @@ int main(int argc, char** argv)
         exit(-1);
     }
 
-    for(int i = 0; i < num_data; ++i)
+    for(i = 0; i < num_data; ++i)
         ifs >> keys[i];
 
     ifs.close();
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
-        for(int i = 0; i < num_data; ++i)
+        for(i = 0; i < num_data; ++i)
         {
             bt->btree_insert(keys[i], (char*)keys[i]);
-            /*
-            printf("debug %s, line %d: ----------------------- insert key = %lu ... count = %d\n",
+			/*
+            printf("debug %s, line %d: ----------------------- insert key = %lu ... count = %lu\n",
             		__FUNCTION__, __LINE__, keys[i], i + 1);
-            */
+			*/
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
 
@@ -89,13 +90,13 @@ int main(int argc, char** argv)
     clear_cache();
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
-        for(int i = 0; i < num_data; ++i)
+        for(i = 0; i < num_data; ++i)
         {
             bt->btree_search(keys[i]);
-            /*
-            printf("debug %s, line %d: ----------------------- search key = %lu ... count = %d\n",
+			/*
+            printf("debug %s, line %d: ----------------------- search key = %lu ... count = %lu\n",
             		__FUNCTION__, __LINE__, keys[i], i + 1);
-            */
+			*/
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
 
@@ -104,19 +105,23 @@ int main(int argc, char** argv)
         elapsed_time /= 1000;
         printf("SEARCH elapsed_time: %lld, Avg: %f\n", elapsed_time,
                (double)elapsed_time / num_data);
-        //bt->print_tree();
+        //bt->printAll();
     }
 
     clear_cache();
     {
         clock_gettime(CLOCK_MONOTONIC, &start);
-        for(int i = 0; i < num_data; ++i)
+        for(i = 0; i < num_data; ++i)
         {
-            bt->btree_delete(keys[i]);
-            /*
-            printf("debug %s, line %d: ----------------------- key = %lu, delete OK ... count = %d\n",
+			/*
+            printf("debug %s, line %d: ----------------------- key = %lu, delete begin ... count = %lu\n",
             		__FUNCTION__, __LINE__, keys[i], i + 1);
-            */
+			*/
+            bt->btree_delete(keys[i]);
+			/*
+            printf("debug %s, line %d: ----------------------- key = %lu, delete OK ...... count = %lu\n",
+            		__FUNCTION__, __LINE__, keys[i], i + 1);
+			*/
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
         long long elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000
@@ -124,7 +129,7 @@ int main(int argc, char** argv)
         elapsed_time /= 1000;
         printf("DELETE elapsed_time: %lld, Avg: %f\n", elapsed_time,
                (double)elapsed_time / num_data);
-        //bt->print_tree();
+        //bt->printAll();
     }
 
     delete bt;
