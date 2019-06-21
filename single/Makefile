@@ -1,10 +1,10 @@
 .PHONY: all clean
 .DEFAULT_GOAL := all
 
-LIBS=-lrt -lm
+LIBS=-lrt -lm -ljemalloc
 INCLUDES=-I./include
 #CFLAGS=-std=c++11 -g -pg -lc
-CFLAGS=-O3 -std=c++11 -g -pg -lc
+CFLAGS=-O3 -std=c++11
 
 output = btree 
 

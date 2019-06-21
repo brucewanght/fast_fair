@@ -13,6 +13,7 @@
 #include <future>
 #include <mutex>
 #include <queue>
+#include <jemalloc/jemalloc.h>
 
 #define PAGESIZE 1024
 
