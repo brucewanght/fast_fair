@@ -1,6 +1,8 @@
 #include "libslb.h"
 #include "btree.h"
+#include "debug.h"
 #include <random>
+using namespace std;
 
 void clear_cache()
 {
@@ -31,7 +33,12 @@ int main(int argc, char** argv)
 {
     //parsing arguments
     uint64_t num_data = 0;
-    entry_key_t i = 0;
+    register entry_key_t i = 0;
+	register entry_key_t id = 0;
+	entry_key_t* pkey = nullptr;
+	entry_key_t* pvalue = nullptr; 
+
+	uint64_t hit = 0;
     int n_threads = 1;
     uint64_t cache_mb = 0;
     float selection_ratio = 0.0f;
@@ -68,19 +75,13 @@ int main(int argc, char** argv)
     btree* bt;
     bt = new btree();
 
-    /*
-        random_device rd;  //Will be used to obtain a seed for the random number engine
-        mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
-        uniform_int_distribution<uint64_t> randint(0,  ULLONG_MAX - 1);
-    */
-
     if(cache_mb > 0)
     {
         cache = (typeof(cache))rcache_create(cache_mb, match_u64, hash_u64, hash_u64);
         debug_assert(cache);
-        gen = rgen_new_unizipf(0, num_data - 1, 1024);
-        debug_assert(gen);
     }
+    gen = rgen_new_unizipf(0, num_data - 1, 1024);
+    debug_assert(gen);
 
     struct timespec start, end;
 
@@ -104,12 +105,9 @@ int main(int argc, char** argv)
         clock_gettime(CLOCK_MONOTONIC, &start);
         for(i = 0; i < num_data; ++i)
         {
-            //convert entry_key_t numbers array elements to char pointer as values
-            bt->btree_insert(keys[i], (char*)(&(keys[i])));
-            /*
-            printf("debug %s, line %d: ----------------------- insert key = %lu ... count = %d\n",
-            		__FUNCTION__, __LINE__, keys[i], i + 1);
-            */
+			//NOTE: we use pointer of data as key and value in btree
+            id = rgen_next_wait(gen);
+            bt->btree_insert(keys[id], (char*)(keys + id));
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
 
@@ -122,52 +120,31 @@ int main(int argc, char** argv)
 
     clear_cache();
     {
-		register entry_key_t id = 0;
-		uint64_t hit = 0;
-		entry_key_t* pkey = nullptr;
-		entry_key_t* pvalue = nullptr; 
-
         clock_gettime(CLOCK_MONOTONIC, &start);
         for(i = 0; i < num_data; ++i)
         {
-            //j = randint(gen)%num_data;
             id = rgen_next_wait(gen);
             if(cache)
             {
                 pkey = &(keys[id]);
                 pvalue = (entry_key_t*)rcache_get(cache, pkey);
-                debug_assert((pvalue == NULL) || (pvalue == pkey));
                 if (pvalue)
                 {
-                    hit++;
-                    /*
-                    printf("debug %s, line %d: ----------------------- hit key[%lu] = %lu, value = %lu ... count = %lu\n",
-                    		__FUNCTION__, __LINE__, id, keys[id], (entry_key_t)pvalue, i + 1);
-                    */
+					++hit;
+					//printf_info("HIT key[%lu] = %lu, value = %lu ... count = %lu", id, keys[id], *pvalue, i + 1);
                 }
-                else
+				else
                 {
                     pvalue = (entry_key_t*)(bt->btree_search(keys[id]));
-                    if(pvalue)
-                    {
-                        /*
-                        printf("debug %s, line %d: ----------------------- miss key[%lu] = %lu, value = %lu ... count = %lu\n",
-                        		__FUNCTION__, __LINE__, id, keys[id], *pvalue, i + 1);
-                        */
-                        rcache_hint(cache, (const void*)pvalue);
-                    }
+                    //printf_info("MISS key[%lu] = %lu, value = %lu ... count = %lu", id, keys[id], *pvalue, i + 1);
+					if(pvalue)
+						rcache_hint(cache, pvalue);
                 }
             }
-            else
+			else
             {
                 pvalue = (entry_key_t*)(bt->btree_search(keys[id]));
-                if(pvalue)
-                {
-                    /*
-                    printf("debug %s, line %d: ----------------------- miss key[%lu] = %lu, value = %lu ... count = %lu\n",
-                    		__FUNCTION__, __LINE__, id, keys[id], *pvalue, i + 1);
-                    */
-                }
+				//printf_info("FOUND key[%lu] = %lu, value = %lu ... count = %lu", id, keys[id], *pvalue, i + 1);
             }
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
@@ -177,7 +154,8 @@ int main(int argc, char** argv)
         elapsed_time /= 1000;
         printf("SEARCH elapsed_time: %lld, Avg: %f\n", elapsed_time,
                (double)elapsed_time / num_data);
-        printf("SLB get hit %" PRIu64 "/%" PRIu64 ", hit ratio = %lf\n", hit, num_data, (double)hit / num_data);
+		if (cache)
+			printf("SLB get hit %" PRIu64 "/%" PRIu64 ", hit ratio = %lf\n", hit, num_data, (double)hit / num_data);
         //bt->print_tree();
     }
 
@@ -186,11 +164,15 @@ int main(int argc, char** argv)
         clock_gettime(CLOCK_MONOTONIC, &start);
         for(i = 0; i < num_data; ++i)
         {
-            bt->btree_delete(keys[i]);
-            /*
-            printf("debug %s, line %d: ----------------------- key = %lu, delete OK ... count = %lu\n",
-            		__FUNCTION__, __LINE__, keys[i], i + 1);
-            */
+			printf_info("DELETE key[%lu] = %lu, ... count = %lu", i, keys[i], i + 1);
+            pvalue = (entry_key_t*)(bt->btree_delete(keys[i]));
+			if(pvalue)
+			{
+				printf_info("DELETE key[%lu] = %lu, value = %lu ... count = %lu --------------------- OK", 
+						i, keys[i], *pvalue, i + 1);
+			}
+			else
+				printf_info("NOT FOUND key[%lu] = %lu, ... count = %lu", i, keys[i], i + 1);
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
         long long elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000
