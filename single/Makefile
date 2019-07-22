@@ -31,13 +31,13 @@ SRCEXTS := .c .cc # C/C++ program
 # If it is a C++ program, no need to set these flags.
 # If it is a C and C++ merging program, set these flags for the C parts.
 CFLAGS  := -std=gnu11 -O3
-CFLAGS  += -g -flto -rdynamic -mtune=native -march=native -Wall -Wextra -pthread
+CFLAGS  += -flto -rdynamic -mtune=native -march=native -Wall -Wextra -pthread
 
 # The compiling flags used only for C++.
 # If it is a C program, no need to set these flags.
 # If it is a C and C++ merging program, set these flags for the C++ parts.
 CXXFLAGS := -std=gnu++11 -O3
-CXXFLAGS += -g
+CXXFLAGS += 
 
 # The library and the link options ( C and C++ common).
 LDFLAGS  := -lrt -lm -lpthread
@@ -94,9 +94,9 @@ all : $(PROGRAM)
 # Generate executable file
 $(PROGRAM) : $(OBJS)
 ifeq ($(strip $(SRCEXTS)), .c)  # C file
-	$(CC) -o $(PROGRAM) $(OBJS) $(LDFLAGS)
+	$(CC) -o $(PROGRAM) $(OBJS) $(CFLAGS) $(LDFLAGS)
 else                            # C++ file
-	$(CXX) -o $(PROGRAM) $(OBJS) $(LDFLAGS)
+	$(CXX) -o $(PROGRAM) $(OBJS) $(CXXFLAGS) $(LDFLAGS)
 endif
 # Include dependency files
 -include $(DEPS)

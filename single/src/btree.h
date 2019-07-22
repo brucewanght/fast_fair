@@ -271,8 +271,6 @@ public:
 
     bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
     {
-		printf_warn("page %p, before removing key %lu:", this, key);
-		print();
         if(!only_rebalance)
         {
             register int num_entries_before = count();
@@ -293,8 +291,6 @@ public:
 
                 // Remove the key from this node
                 bool ret = remove_key(key);
-				printf_warn("page %p is root, after removing key %lu:", this, key);
-				print();
                 return true;
             }
 
@@ -310,8 +306,6 @@ public:
 
             if(!should_rebalance)
             {
-				printf_warn("page %p is not root, after removing key %lu:", this, key);
-				print();
                 return (hdr.leftmost_ptr == NULL) ? ret : true;
             }
         }
@@ -325,11 +319,8 @@ public:
 
         if(is_leftmost_node)
         {
-			printf_warn("page %p, remove first key of right sibling %p", this, hdr.sibling_ptr);
             hdr.sibling_ptr->remove(bt, hdr.sibling_ptr->records[0].key, true,
                                     with_lock);
-			printf_warn("page %p, after removing key %lu:", this, key);
-			print();
             return true;
         }
 
@@ -488,8 +479,6 @@ public:
             clflush((char*) & (left_sibling->hdr.sibling_ptr), sizeof(page*));
         }
 
-		printf_warn("page %p, after removing key %lu:", this, key);
-		print();
         return true;
     }
 
@@ -531,7 +520,6 @@ public:
 			{
 				if(key == records[i].key)
 				{
-					printf_warn("page %p, update key %lu", this, key);
 					records[i].ptr = ptr;
                     if(flush)
                     {
@@ -1148,7 +1136,7 @@ char* btree::btree_delete(entry_key_t key)
     {
         if(!p->remove(this, key))
         {
-			printf_error("key %lu should be in page %p, but not found!", key, p);
+			//printf_error("key %lu should be in page %p, but not found!", key, p);
 			return NULL;
         }
         if(p->hdr.is_deleted)
@@ -1159,7 +1147,7 @@ char* btree::btree_delete(entry_key_t key)
     }
     else
     {
-		printf_error("not found key %lu", key);
+		//printf_error("not found key %lu", key);
 		return NULL;
     }
 	return (char*)t;

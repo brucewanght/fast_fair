@@ -164,8 +164,9 @@ int main(int argc, char** argv)
         clock_gettime(CLOCK_MONOTONIC, &start);
         for(i = 0; i < num_data; ++i)
         {
-			printf_info("DELETE key[%lu] = %lu, ... count = %lu", i, keys[i], i + 1);
+			//printf_info("DELETE key[%lu] = %lu, ... count = %lu", i, keys[i], i + 1);
             pvalue = (entry_key_t*)(bt->btree_delete(keys[i]));
+			/*
 			if(pvalue)
 			{
 				printf_info("DELETE key[%lu] = %lu, value = %lu ... count = %lu --------------------- OK", 
@@ -173,6 +174,7 @@ int main(int argc, char** argv)
 			}
 			else
 				printf_info("NOT FOUND key[%lu] = %lu, ... count = %lu", i, keys[i], i + 1);
+			*/
         }
         clock_gettime(CLOCK_MONOTONIC, &end);
         long long elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000
