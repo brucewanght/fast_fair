@@ -62,6 +62,7 @@ inline void mfence()
 
 inline void clflush(char* data, int len)
 {
+	//ptr is aligned to CACHE_LINE_SIZE
     volatile char* ptr = (char*)((unsigned long)data & ~(CACHE_LINE_SIZE - 1));
     mfence();
     for(; ptr < data + len; ptr += CACHE_LINE_SIZE)
@@ -71,7 +72,7 @@ inline void clflush(char* data, int len)
         asm volatile("clflush %0" : "+m" (*(volatile char*)ptr));
         while (read_tsc() < etsc) cpu_pause();
         ++clflush_cnt;
-		clflush_data += len;
+		clflush_data += CACHE_LINE_SIZE;
     }
     mfence();
 }
