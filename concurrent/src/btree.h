@@ -86,7 +86,7 @@ public:
     void getNumberOfNodes();
     void btree_insert(entry_key_t, char*);
     void btree_insert_internal(char *, entry_key_t, char *, uint32_t);
-    void btree_delete(entry_key_t);
+    char* btree_delete(entry_key_t);
     void btree_delete_internal
     (entry_key_t, char *, uint32_t, entry_key_t *, bool *, page **);
     char *btree_search(entry_key_t);
@@ -258,6 +258,10 @@ public:
         return shift;
     }
 
+	/*
+	 * B+-Tree removing with rebalancing
+	 */
+	/*
     bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
     {
         hdr.mtx->lock();
@@ -268,6 +272,7 @@ public:
 
         return ret;
     }
+	*/
 
     /*
      * Although we implemented the rebalancing of B+-Tree, it is currently blocked for the performance.
@@ -275,8 +280,9 @@ public:
      * Chi, P., Lee, W. C., & Xie, Y. (2014, August).
      * Making B+-tree efficient in PCM-based main memory. In Proceedings of the 2014
      * international symposium on Low power electronics and design (pp. 69-74). ACM.
+     * bool remove_rebalancing(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
      */
-    bool remove_rebalancing(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
+    bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
     {
         if(with_lock)
         {
@@ -1131,7 +1137,7 @@ char *btree::btree_search(entry_key_t key)
 
     if(!t || (char *)t != (char *)key)
     {
-        printf("NOT FOUND %lu, t = %x\n", key, t);
+        //printf("NOT FOUND %lu, t = %x\n", key, t);
         return NULL;
     }
 
@@ -1172,7 +1178,7 @@ void btree::btree_insert_internal
     }
 }
 
-void btree::btree_delete(entry_key_t key)
+char* btree::btree_delete(entry_key_t key)
 {
     page* p = (page*)root;
 
@@ -1193,13 +1199,20 @@ void btree::btree_delete(entry_key_t key)
     {
         if(!p->remove(this, key))
         {
-            btree_delete(key);
+			return NULL;
+        }
+        if(p->hdr.is_deleted)
+        {
+            //delete page
+            delete p;
         }
     }
     else
     {
-        printf("not found the key to delete %lu\n", key);
+        //printf("not found the key to delete %lu\n", key);
+		return NULL;
     }
+	return (char*)t;
 }
 
 void btree::btree_delete_internal

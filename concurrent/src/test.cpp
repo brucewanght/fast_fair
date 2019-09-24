@@ -16,7 +16,7 @@ void clear_cache()
 int main(int argc, char** argv)
 {
     // Parsing arguments
-    int numData = 0;
+    int num_data = 0;
     int n_threads = 1;
     char *input_path = (char *)std::string("../sample_input.txt").data();
 
@@ -26,7 +26,7 @@ int main(int argc, char** argv)
         switch(c)
         {
         case 'n':
-            numData = atoi(optarg);
+            num_data = atoi(optarg);
             break;
         case 'w':
             write_latency_in_ns = atol(optarg);
@@ -47,7 +47,7 @@ int main(int argc, char** argv)
     struct timespec start, end, tmp;
 
     // Reading data
-    entry_key_t* keys = new entry_key_t[numData];
+    entry_key_t* keys = new entry_key_t[num_data];
 
     ifstream ifs;
     ifs.open(input_path);
@@ -57,7 +57,7 @@ int main(int argc, char** argv)
         cout << "input loading error!" << endl;
     }
 
-    for(int i = 0; i < numData; ++i)
+    for(int i = 0; i < num_data; ++i)
     {
         ifs >> keys[i];
     }
@@ -71,17 +71,19 @@ int main(int argc, char** argv)
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    long half_num_data = numData / 2;
+    long half_num_data = num_data / 2;
 
     // Warm-up! Insert half of input size
     for(int i = 0; i < half_num_data; ++i)
     {
         bt->btree_insert(keys[i], (char*) keys[i]);
     }
-    cout << "Warm-up!" << endl;
 
     clock_gettime(CLOCK_MONOTONIC, &end);
-    long long elapsedTime = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
+    long long elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
+	elapsed_time /= 1000;
+	printf("warm up half of data, elapsed_time (usec): %lld, Avg: %f\n", 
+			elapsed_time, (double)elapsed_time / half_num_data);	
 
     clear_cache();
 
@@ -111,8 +113,10 @@ int main(int argc, char** argv)
             f.get();
 
     clock_gettime(CLOCK_MONOTONIC, &end);
-    elapsedTime = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
-    cout << "Concurrent searching with " << n_threads << " threads (usec) : " << elapsedTime / 1000 << endl;
+    elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
+	elapsed_time /= 1000;
+	printf("Concurrent searching with %d threads, elapsed_time (usec): %lld, Avg: %f\n", 
+			n_threads, elapsed_time, (double)elapsed_time / num_data);	
 
     clear_cache();
     futures.clear();
@@ -123,7 +127,7 @@ int main(int argc, char** argv)
     for(int tid = 0; tid < n_threads; tid++)
     {
         int from = half_num_data + data_per_thread * tid;
-        int to = (tid == n_threads - 1) ? numData : from + data_per_thread;
+        int to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
 
         auto f = async(launch::async, [&bt, &keys](int from, int to)
         {
@@ -137,15 +141,42 @@ int main(int argc, char** argv)
             f.get();
 
     clock_gettime(CLOCK_MONOTONIC, &end);
-    elapsedTime = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
-    cout << "Concurrent inserting with " << n_threads << " threads (usec) : " << elapsedTime / 1000 << endl;
+    elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
+	elapsed_time /= 1000;
+	printf("Concurrent inserting with %d threads, elapsed_time (usec): %lld, Avg: %f\n", 
+			n_threads, elapsed_time, (double)elapsed_time / num_data);	
+
+    // Delete
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for(int tid = 0; tid < n_threads; tid++)
+    {
+        int from = half_num_data + data_per_thread * tid;
+        int to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
+
+        auto f = async(launch::async, [&bt, &keys](int from, int to)
+        {
+            for(int i = from; i < to; ++i)
+                bt->btree_delete(keys[i]);
+        }, from, to);
+        futures.push_back(move(f));
+    }
+    for(auto &&f : futures)
+        if(f.valid())
+            f.get();
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
+	elapsed_time /= 1000;
+	printf("Concurrent deleting with %d threads, elapsed_time (usec): %lld, Avg: %f\n",
+			n_threads, elapsed_time, (double)elapsed_time / num_data);	
+
 #else
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     for(int tid = 0; tid < n_threads; tid++)
     {
         int from = half_num_data + data_per_thread * tid;
-        int to = (tid == n_threads - 1) ? numData : from + data_per_thread;
+        int to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
 
         auto f = async(launch::async, [&bt, &keys, &half_num_data](int from, int to)
         {
@@ -194,8 +225,10 @@ int main(int argc, char** argv)
             f.get();
 
     clock_gettime(CLOCK_MONOTONIC, &end);
-    elapsedTime = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
-    cout << "Concurrent inserting and searching with " << n_threads << " threads (usec) : " << elapsedTime / 1000 << endl;
+    elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
+	elapsed_time /= 1000;
+	printf("Concurrent inserting/searching/deleting with %d threads, elapsed_time (usec): %lld, Avg: %f\n",
+			n_threads, elapsed_time, (double)elapsed_time / num_data);	
 #endif
 
     delete bt;
