@@ -3,11 +3,11 @@
 void clear_cache()
 {
     // Remove cache
-    int size = 256 * 1024 * 1024;
+    uint64_t size = 256 * 1024 * 1024;
     char *garbage = new char[size];
-    for(int i = 0; i < size; ++i)
+    for(uint64_t i = 0; i < size; ++i)
         garbage[i] = i;
-    for(int i = 100; i < size; ++i)
+    for(uint64_t i = 100; i < size; ++i)
         garbage[i] += garbage[i - 100];
     delete[] garbage;
 }
@@ -16,7 +16,7 @@ void clear_cache()
 int main(int argc, char** argv)
 {
     // Parsing arguments
-    int num_data = 0;
+    uint64_t num_data = 0;
     int n_threads = 1;
     char *input_path = (char *)std::string("../sample_input.txt").data();
 
@@ -45,6 +45,7 @@ int main(int argc, char** argv)
     bt = new btree();
 
     struct timespec start, end, tmp;
+	long long elapsed_time = 0;
 
     // Reading data
     entry_key_t* keys = new entry_key_t[num_data];
@@ -57,7 +58,7 @@ int main(int argc, char** argv)
         cout << "input loading error!" << endl;
     }
 
-    for(int i = 0; i < num_data; ++i)
+    for(uint64_t i = 0; i < num_data; ++i)
     {
         ifs >> keys[i];
     }
@@ -69,70 +70,26 @@ int main(int argc, char** argv)
     clflush_time_in_insert = 0;
     gettime_cnt = 0;
 
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    long half_num_data = num_data / 2;
-
-    // Warm-up! Insert half of input size
-    for(int i = 0; i < half_num_data; ++i)
-    {
-        bt->btree_insert(keys[i], (char*) keys[i]);
-    }
-
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    long long elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
-	elapsed_time /= 1000;
-	printf("warm up half of data, elapsed_time (usec): %lld, Avg: %f\n", 
-			elapsed_time, (double)elapsed_time / half_num_data);	
-
     clear_cache();
-
     // Multithreading
     vector<future<void>> futures(n_threads);
 
-    long data_per_thread = half_num_data / n_threads;
-
 #ifndef MIXED
-    // Search
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    for(int tid = 0; tid < n_threads; tid++)
-    {
-        int from = data_per_thread * tid;
-        int to = (tid == n_threads - 1) ? half_num_data : from + data_per_thread;
-
-        auto f = async(launch::async, [&bt, &keys](int from, int to)
-        {
-            for(int i = from; i < to; ++i)
-                bt->btree_search(keys[i]);
-        }, from, to);
-        futures.push_back(move(f));
-    }
-    for(auto &&f : futures)
-        if(f.valid())
-            f.get();
-
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
-	elapsed_time /= 1000;
-	printf("Concurrent searching with %d threads, elapsed_time (usec): %lld, Avg: %f\n", 
-			n_threads, elapsed_time, (double)elapsed_time / num_data);	
-
-    clear_cache();
-    futures.clear();
-
+    uint64_t data_per_thread = num_data / n_threads;
     // Insert
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     for(int tid = 0; tid < n_threads; tid++)
     {
-        int from = half_num_data + data_per_thread * tid;
-        int to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
+        uint64_t from = data_per_thread * tid;
+        uint64_t to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
 
-        auto f = async(launch::async, [&bt, &keys](int from, int to)
+        auto f = async(launch::async, [&bt, &keys](uint64_t from, uint64_t to)
         {
             for(int i = from; i < to; ++i)
+			{
                 bt->btree_insert(keys[i], (char*) keys[i]);
+			}
         }, from, to);
         futures.push_back(move(f));
     }
@@ -145,18 +102,53 @@ int main(int argc, char** argv)
 	elapsed_time /= 1000;
 	printf("Concurrent inserting with %d threads, elapsed_time (usec): %lld, Avg: %f\n", 
 			n_threads, elapsed_time, (double)elapsed_time / num_data);	
+    clear_cache();
+    futures.clear();
+
+    // Search
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    for(int tid = 0; tid < n_threads; tid++)
+    {
+        uint64_t from = data_per_thread * tid;
+        uint64_t to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
+
+        auto f = async(launch::async, [&bt, &keys](uint64_t from, uint64_t to)
+        {
+            for(uint64_t i = from; i < to; ++i)
+			{
+                bt->btree_search(keys[i]);
+			}
+        }, from, to);
+        futures.push_back(move(f));
+    }
+    for(auto &&f : futures)
+        if(f.valid())
+            f.get();
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
+	elapsed_time /= 1000;
+	printf("Concurrent searching with %d threads, elapsed_time (usec): %lld, Avg: %f\n", 
+			n_threads, elapsed_time, (double)elapsed_time / num_data);	
+    clear_cache();
+    futures.clear();
 
     // Delete
     clock_gettime(CLOCK_MONOTONIC, &start);
     for(int tid = 0; tid < n_threads; tid++)
     {
-        int from = half_num_data + data_per_thread * tid;
-        int to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
+        uint64_t from = data_per_thread * tid;
+        uint64_t to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
 
         auto f = async(launch::async, [&bt, &keys](int from, int to)
         {
-            for(int i = from; i < to; ++i)
+            for(uint64_t i = from; i < to; ++i)
+			{
+			    //printf_warn("delete index = %lu, key = %lu ... begin", i, keys[i]);
                 bt->btree_delete(keys[i]);
+			    printf_warn("delete index = %lu, key = %lu ... OK", i, keys[i]);
+			}
         }, from, to);
         futures.push_back(move(f));
     }
@@ -171,43 +163,43 @@ int main(int argc, char** argv)
 			n_threads, elapsed_time, (double)elapsed_time / num_data);	
 
 #else
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
+	long half_num_data = num_data / 2;
+    long data_per_thread = num_data / n_threads;
     for(int tid = 0; tid < n_threads; tid++)
     {
-        int from = half_num_data + data_per_thread * tid;
-        int to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
+        uint64_t from = half_num_data + data_per_thread * tid;
+        uint64_t to = (tid == n_threads - 1) ? num_data : from + data_per_thread;
 
         auto f = async(launch::async, [&bt, &keys, &half_num_data](int from, int to)
         {
-            for(int i = from; i < to; ++i)
+            for(uint64_t i = from; i < to; ++i)
             {
-                int sidx = i - half_num_data;
+                uint64_t sidx = i - half_num_data;
 
-                int jid = i % 4;
+                uint64_t jid = i % 4;
                 switch(jid)
                 {
                 case 0:
                     bt->btree_insert(keys[i], (char*) keys[i]);
-                    for(int j = 0; j < 4; j++)
+                    for(uint64_t j = 0; j < 4; j++)
                         bt->btree_search(keys[(sidx + j + jid * 8) % half_num_data]);
                     bt->btree_delete(keys[i]);
                     break;
                 case 1:
-                    for(int j = 0; j < 3; j++)
+                    for(uint64_t j = 0; j < 3; j++)
                         bt->btree_search(keys[(sidx + j + jid * 8) % half_num_data]);
                     bt->btree_insert(keys[i], (char*) keys[i]);
                     bt->btree_search(keys[(sidx + 3 + jid * 8) % half_num_data]);
                     break;
                 case 2:
-                    for(int j = 0; j < 2; j++)
+                    for(uint64_t j = 0; j < 2; j++)
                         bt->btree_search(keys[(sidx + j + jid * 8) % half_num_data]);
                     bt->btree_insert(keys[i], (char*) keys[i]);
-                    for(int j = 2; j < 4; j++)
+                    for(uint64_t j = 2; j < 4; j++)
                         bt->btree_search(keys[(sidx + j + jid * 8) % half_num_data]);
                     break;
                 case 3:
-                    for(int j = 0; j < 4; j++)
+                    for(uint64_t j = 0; j < 4; j++)
                         bt->btree_search(keys[(sidx + j + jid * 8) % half_num_data]);
                     bt->btree_insert(keys[i], (char*) keys[i]);
                     break;
@@ -219,11 +211,9 @@ int main(int argc, char** argv)
         futures.push_back(move(f));
 
     }
-
     for(auto &&f : futures)
         if(f.valid())
             f.get();
-
     clock_gettime(CLOCK_MONOTONIC, &end);
     elapsed_time = (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
 	elapsed_time /= 1000;
@@ -231,10 +221,9 @@ int main(int argc, char** argv)
 			n_threads, elapsed_time, (double)elapsed_time / num_data);	
 #endif
 
+    futures.clear();
     delete bt;
     delete[] keys;
 
     return 0;
 }
-
-
