@@ -272,9 +272,9 @@ public:
         return shift;
     }
 
-	/*
-    bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true) 
-	{
+    /*
+    bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
+    {
       hdr.mtx->lock();
 
       bool ret = remove_key(key);
@@ -283,7 +283,7 @@ public:
 
       return ret;
     }
-	*/
+    */
 
     /*
      * Although we implemented the rebalancing of B+-Tree, it is currently blocked for the performance.
@@ -305,7 +305,7 @@ public:
             {
                 hdr.mtx->unlock();
             }
-			printf_error("page %p is already deleted, return false", this);
+            printf_error("page %p is already deleted, return false", this);
             return false;
         }
 
@@ -362,8 +362,8 @@ public:
         entry_key_t deleted_key_from_parent = 0;
         bool is_leftmost_node = false;
         page* left_sibling = nullptr;
-        bt->btree_delete_internal(key, (char*)this, hdr.level + 1, &deleted_key_from_parent, 
-				&is_leftmost_node, &left_sibling);
+        bt->btree_delete_internal(key, (char*)this, hdr.level + 1, &deleted_key_from_parent,
+                                  &is_leftmost_node, &left_sibling);
 
         printf_warn("after btree_delete_internal, deleted_key_from_parent %lu, is_leftmost_node %d, left_sibling %p",
                     deleted_key_from_parent, is_leftmost_node, left_sibling);
@@ -379,9 +379,9 @@ public:
             {
                 hdr.sibling_ptr->hdr.mtx->lock();
             }
-			printf_warn("sibling_ptr %p, before delete key %lu", hdr.sibling_ptr, hdr.sibling_ptr->records[0].key);
+            printf_warn("sibling_ptr %p, before delete key %lu", hdr.sibling_ptr, hdr.sibling_ptr->records[0].key);
             hdr.sibling_ptr->remove(bt, hdr.sibling_ptr->records[0].key, true, with_lock);
-			//assert(hdr.sibling_ptr);
+            //assert(hdr.sibling_ptr);
             if(!with_lock && hdr.sibling_ptr)
             {
                 hdr.sibling_ptr->hdr.mtx->unlock();
@@ -413,30 +413,30 @@ public:
                 page* t = left_sibling->hdr.sibling_ptr;
                 left_sibling->hdr.mtx->unlock();
                 left_sibling = t;
-				//FIXME: left_sibling can be null, why?
-				if(!left_sibling)
-					break;
+                //FIXME: left_sibling can be null, why?
+                if(!left_sibling)
+                    break;
                 left_sibling->hdr.mtx->lock();
             }
             else
-			{
+            {
                 left_sibling = left_sibling->hdr.sibling_ptr;
-				if(!left_sibling)
-					break;
-			}
+                if(!left_sibling)
+                    break;
+            }
 
         }
 
-		//FIXME: when left_sibling is null, what will happen?
-		if(!left_sibling)
-		{
-			printf_error("can't find the left_sibling of current page %p!", this);
-			if(with_lock)
-			{
-				hdr.mtx->unlock();
-			}
-			return true;
-		}
+        //FIXME: when left_sibling is null, what will happen?
+        if(!left_sibling)
+        {
+            printf_error("can't find the left_sibling of current page %p!", this);
+            if(with_lock)
+            {
+                hdr.mtx->unlock();
+            }
+            return true;
+        }
 
         register int num_entries = count();
         register int left_num_entries = left_sibling->count();
@@ -594,7 +594,7 @@ public:
     }
 
     inline void insert_key(entry_key_t key, char* ptr, int* num_entries, bool flush = true,
-               bool update_last_index = true)
+                           bool update_last_index = true)
     {
         bool update_num = true;
         // update switch_counter
@@ -718,8 +718,8 @@ public:
     }
 
     // Insert a new key - FAST and FAIR
-    page* store(btree* bt, char* left, entry_key_t key, char* right, 
-			bool flush, bool with_lock, page* invalid_sibling = NULL)
+    page* store(btree* bt, char* left, entry_key_t key, char* right,
+                bool flush, bool with_lock, page* invalid_sibling = NULL)
     {
         if(with_lock)
         {
@@ -732,7 +732,7 @@ public:
             {
                 hdr.mtx->unlock();
             }
-			printf_error("page %p is already deleted, return NULL!", this);
+            printf_error("page %p is already deleted, return NULL!", this);
             return NULL;
         }
 
@@ -1229,7 +1229,7 @@ void btree::btree_insert(entry_key_t key, char* right)  //need to be string
     if(!p->store(this, NULL, key, right, true, true))   // store
     {
         //btree_insert(key, right);
-		printf_error("page %p, key %lu, insert failed!", p, key);
+        printf_error("page %p, key %lu, insert failed!", p, key);
     }
 }
 
@@ -1245,9 +1245,9 @@ void btree::btree_insert_internal(char* left, entry_key_t key, char* right, uint
         p = (page*)p->linear_search(key);
 
     if(!p->store(this, NULL, key, right, true, true))
-	{
-		printf_error("page %p, key %lu, insert failed!", p, key);
-	}
+    {
+        printf_error("page %p, key %lu, insert failed!", p, key);
+    }
 }
 
 void btree::btree_delete(entry_key_t key)
@@ -1269,14 +1269,14 @@ void btree::btree_delete(entry_key_t key)
 
     if(p)
     {
-		printf_warn("----------------page %p, before delete key %lu", p, key);
-		p->print();
+        printf_warn("----------------page %p, before delete key %lu", p, key);
+        p->print();
         if(!p->remove(this, key))
         {
             printf_error("key %lu is not in page %p\n", key, p);
         }
-		printf_warn("----------------page %p, after delete key %lu", p, key);
-		p->print();
+        printf_warn("----------------page %p, after delete key %lu", p, key);
+        p->print();
     }
     else
     {
@@ -1284,8 +1284,8 @@ void btree::btree_delete(entry_key_t key)
     }
 }
 
-void btree::btree_delete_internal(entry_key_t key, char* ptr, uint32_t level, 
-		entry_key_t* deleted_key, bool* is_leftmost_node, page** left_sibling)
+void btree::btree_delete_internal(entry_key_t key, char* ptr, uint32_t level,
+                                  entry_key_t* deleted_key, bool* is_leftmost_node, page** left_sibling)
 {
     if(level > ((page*)this->root)->hdr.level)
         return;
@@ -1321,7 +1321,7 @@ void btree::btree_delete_internal(entry_key_t key, char* ptr, uint32_t level,
                 {
                     *deleted_key = p->records[i].key;
                     *left_sibling = p->hdr.leftmost_ptr;
-					//FIXME: with_lock should be true?
+                    //FIXME: with_lock should be true?
                     //p->remove(this, *deleted_key, false, false);
                     p->remove(this, *deleted_key, false, false);
                     break;
