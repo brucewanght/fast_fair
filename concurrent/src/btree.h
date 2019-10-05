@@ -31,17 +31,20 @@
 #define DELAY_IN_NS (1000)
 #define CACHE_LINE_SIZE 64
 #define QUERY_NUM 25
+#define INVALID_KEY ULLONG_MAX
 
 #define IS_FORWARD(c) (c % 2 == 0)
 
 using entry_key_t = uint64_t;
 
 pthread_mutex_t print_mtx;
+pthread_mutex_t node_mtx;
 
 static inline void cpu_pause()
 {
     __asm__ volatile ("pause" ::: "memory");
 }
+
 static inline unsigned long read_tsc(void)
 {
     unsigned long var;
@@ -99,8 +102,7 @@ public:
     void btree_insert(entry_key_t, char*);
     void btree_insert_internal(char*, entry_key_t, char*, uint32_t);
     void btree_delete(entry_key_t);
-    void btree_delete_internal
-    (entry_key_t, char*, uint32_t, entry_key_t*, bool*, page**);
+    void btree_delete_internal(entry_key_t, char*, uint32_t, entry_key_t*, bool*, page**);
     char* btree_search(entry_key_t);
     void btree_search_range(entry_key_t, entry_key_t, unsigned long*);
     void printAll();
@@ -149,7 +151,7 @@ private:
 public :
     entry()
     {
-        key = LONG_MAX;
+        key = INVALID_KEY;
         ptr = NULL;
     }
 
@@ -270,8 +272,9 @@ public:
         return shift;
     }
 
-    /*
-    bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true) {
+	/*
+    bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true) 
+	{
       hdr.mtx->lock();
 
       bool ret = remove_key(key);
@@ -280,7 +283,7 @@ public:
 
       return ret;
     }
-    */
+	*/
 
     /*
      * Although we implemented the rebalancing of B+-Tree, it is currently blocked for the performance.
@@ -295,12 +298,14 @@ public:
         {
             hdr.mtx->lock();
         }
+
         if(hdr.is_deleted)
         {
             if(with_lock)
             {
                 hdr.mtx->unlock();
             }
+			printf_error("page %p is already deleted, return false", this);
             return false;
         }
 
@@ -322,18 +327,15 @@ public:
                     }
                 }
 
-				printf_warn("current page %p is root, before remove key %lu", this, key);
-				//print();
                 // Remove the key from this node
                 bool ret = remove_key(key);
-				printf_warn("current page %p is root, after remove key %lu", this, key);
-				//print();
 
                 if(with_lock)
                 {
                     hdr.mtx->unlock();
                 }
-                return true;
+                printf_warn("current page %p is root, after remove key %lu", this, key);
+                return ret;
             }
 
             bool should_rebalance = true;
@@ -346,8 +348,6 @@ public:
             // Remove the key from this node
             bool ret = remove_key(key);
 
-			//printf_warn("current page %p, after remove key %lu", this, key);
-			//print();
             if(!should_rebalance)
             {
                 if(with_lock)
@@ -361,12 +361,13 @@ public:
         //Remove a key from the parent node
         entry_key_t deleted_key_from_parent = 0;
         bool is_leftmost_node = false;
-        page* left_sibling;
-        bt->btree_delete_internal(key, (char*)this, hdr.level + 1,
-                                  &deleted_key_from_parent, &is_leftmost_node, &left_sibling);
+        page* left_sibling = nullptr;
+        bt->btree_delete_internal(key, (char*)this, hdr.level + 1, &deleted_key_from_parent, 
+				&is_leftmost_node, &left_sibling);
 
-		printf_warn("after btree_delete_internal, deleted_key_from_parent %lu, is_leftmost_node %d, left_sibling %p", 
-				deleted_key_from_parent, is_leftmost_node, left_sibling);
+        printf_warn("after btree_delete_internal, deleted_key_from_parent %lu, is_leftmost_node %d, left_sibling %p",
+                    deleted_key_from_parent, is_leftmost_node, left_sibling);
+
         if(is_leftmost_node)
         {
             if(with_lock)
@@ -377,37 +378,65 @@ public:
             if(!with_lock)
             {
                 hdr.sibling_ptr->hdr.mtx->lock();
-				printf_warn("page %p before remove key %lu", hdr.sibling_ptr, hdr.sibling_ptr->records[0].key);
-				//hdr.sibling_ptr->print();
             }
+			printf_warn("sibling_ptr %p, before delete key %lu", hdr.sibling_ptr, hdr.sibling_ptr->records[0].key);
             hdr.sibling_ptr->remove(bt, hdr.sibling_ptr->records[0].key, true, with_lock);
+			//assert(hdr.sibling_ptr);
             if(!with_lock && hdr.sibling_ptr)
             {
-				printf_warn("page %p after remove-----------------------", hdr.sibling_ptr);
-				//hdr.sibling_ptr->print();
                 hdr.sibling_ptr->hdr.mtx->unlock();
+            }
+            return true;
+        }
+
+        //FIXME: when left_sibling is null, what will happen?
+        if(!left_sibling)
+        {
+            printf_error("left_sibling of current page %p is null!", this);
+            if(with_lock)
+            {
+                hdr.mtx->unlock();
             }
             return true;
         }
 
         if(with_lock)
         {
-			//FIXME: core dump when handle multi-thread deleteing
             left_sibling->hdr.mtx->lock();
         }
 
         while(left_sibling->hdr.sibling_ptr != this)
         {
+            printf_warn("left_sibling->hdr.sibling_ptr = %p, this = %p", left_sibling->hdr.sibling_ptr, this);
             if(with_lock)
             {
                 page* t = left_sibling->hdr.sibling_ptr;
                 left_sibling->hdr.mtx->unlock();
                 left_sibling = t;
+				//FIXME: left_sibling can be null, why?
+				if(!left_sibling)
+					break;
                 left_sibling->hdr.mtx->lock();
             }
             else
+			{
                 left_sibling = left_sibling->hdr.sibling_ptr;
+				if(!left_sibling)
+					break;
+			}
+
         }
+
+		//FIXME: when left_sibling is null, what will happen?
+		if(!left_sibling)
+		{
+			printf_error("can't find the left_sibling of current page %p!", this);
+			if(with_lock)
+			{
+				hdr.mtx->unlock();
+			}
+			return true;
+		}
 
         register int num_entries = count();
         register int left_num_entries = left_sibling->count();
@@ -429,8 +458,7 @@ public:
                 {
                     for(int i = left_num_entries - 1; i >= m; i--)
                     {
-                        insert_key
-                        (left_sibling->records[i].key, left_sibling->records[i].ptr, &num_entries);
+                        insert_key(left_sibling->records[i].key, left_sibling->records[i].ptr, &num_entries);
                     }
 
                     left_sibling->records[m].ptr = nullptr;
@@ -443,8 +471,7 @@ public:
                 }
                 else
                 {
-                    insert_key(deleted_key_from_parent, (char*)hdr.leftmost_ptr,
-                               &num_entries);
+                    insert_key(deleted_key_from_parent, (char*)hdr.leftmost_ptr, &num_entries);
 
                     for(int i = left_num_entries - 1; i > m; i--)
                     {
@@ -471,8 +498,7 @@ public:
                 }
                 else
                 {
-                    bt->btree_insert_internal
-                    ((char*)left_sibling, parent_key, (char*)this, hdr.level + 1);
+                    bt->btree_insert_internal((char*)left_sibling, parent_key, (char*)this, hdr.level + 1);
                 }
             }
             else  // from leftmost case
@@ -491,14 +517,12 @@ public:
                 {
                     for(int i = 0; i < num_dist_entries; i++)
                     {
-                        left_sibling->insert_key(records[i].key, records[i].ptr,
-                                                 &left_num_entries);
+                        left_sibling->insert_key(records[i].key, records[i].ptr, &left_num_entries);
                     }
 
                     for(int i = num_dist_entries; records[i].ptr != NULL; i++)
                     {
-                        new_sibling->insert_key(records[i].key, records[i].ptr,
-                                                &new_sibling_cnt, false);
+                        new_sibling->insert_key(records[i].key, records[i].ptr, &new_sibling_cnt, false);
                     }
 
                     clflush((char*)(new_sibling), sizeof(page));
@@ -510,13 +534,11 @@ public:
                 }
                 else
                 {
-                    left_sibling->insert_key(deleted_key_from_parent,
-                                             (char*)hdr.leftmost_ptr, &left_num_entries);
+                    left_sibling->insert_key(deleted_key_from_parent, (char*)hdr.leftmost_ptr, &left_num_entries);
 
                     for(int i = 0; i < num_dist_entries - 1; i++)
                     {
-                        left_sibling->insert_key(records[i].key, records[i].ptr,
-                                                 &left_num_entries);
+                        left_sibling->insert_key(records[i].key, records[i].ptr, &left_num_entries);
                     }
 
                     parent_key = records[num_dist_entries - 1].key;
@@ -524,8 +546,7 @@ public:
                     new_sibling->hdr.leftmost_ptr = (page*)records[num_dist_entries - 1].ptr;
                     for(int i = num_dist_entries; records[i].ptr != NULL; i++)
                     {
-                        new_sibling->insert_key(records[i].key, records[i].ptr,
-                                                &new_sibling_cnt, false);
+                        new_sibling->insert_key(records[i].key, records[i].ptr, &new_sibling_cnt, false);
                     }
                     clflush((char*)(new_sibling), sizeof(page));
 
@@ -540,8 +561,7 @@ public:
                 }
                 else
                 {
-                    bt->btree_insert_internal
-                    ((char*)left_sibling, parent_key, (char*)new_sibling, hdr.level + 1);
+                    bt->btree_insert_internal((char*)left_sibling, parent_key, (char*)new_sibling, hdr.level + 1);
                 }
 
                 new_sibling->hdr.mtx->unlock();
@@ -553,8 +573,7 @@ public:
             clflush((char*) & (hdr.is_deleted), sizeof(uint8_t));
 
             if(hdr.leftmost_ptr)
-                left_sibling->insert_key(deleted_key_from_parent,
-                                         (char*)hdr.leftmost_ptr, &left_num_entries);
+                left_sibling->insert_key(deleted_key_from_parent, (char*)hdr.leftmost_ptr, &left_num_entries);
 
             for(int i = 0; records[i].ptr != NULL; ++i)
             {
@@ -574,10 +593,10 @@ public:
         return true;
     }
 
-    inline void
-    insert_key(entry_key_t key, char* ptr, int* num_entries, bool flush = true,
+    inline void insert_key(entry_key_t key, char* ptr, int* num_entries, bool flush = true,
                bool update_last_index = true)
     {
+        bool update_num = true;
         // update switch_counter
         if(!IS_FORWARD(hdr.switch_counter))
             ++hdr.switch_counter;
@@ -607,17 +626,16 @@ public:
                     clflush((char*) & (records[*num_entries + 1].ptr), sizeof(char*));
             }
 
-            // FAST
-            for(i = *num_entries - 1; i >= 0; i--)
+            //FIXME: first check if the key is already exist
+            for(i = 0; i < *num_entries; i++)
             {
-                if(key < records[i].key )
+                if(key == records[i].key)
                 {
-                    records[i + 1].ptr = records[i].ptr;
-                    records[i + 1].key = records[i].key;
-
+                    printf_warn("page %p, update key %lu", this, key);
+                    records[i].ptr = ptr;
                     if(flush)
                     {
-                        uint64_t records_ptr = (uint64_t)(&records[i + 1]);
+                        uint64_t records_ptr = (uint64_t)(&records[i]);
 
                         int remainder = records_ptr % CACHE_LINE_SIZE;
                         bool do_flush = (remainder == 0) ||
@@ -631,19 +649,52 @@ public:
                         else
                             ++to_flush_cnt;
                     }
-                }
-                else
-                {
-                    records[i + 1].ptr = records[i].ptr;
-                    records[i + 1].key = key;
-                    records[i + 1].ptr = ptr;
-
-                    if(flush)
-                        clflush((char*)&records[i + 1], sizeof(entry));
+                    update_num = false;
                     inserted = 1;
-                    break;
                 }
             }
+
+            if(inserted == 0)
+            {
+                // FAST
+                for(i = *num_entries - 1; i >= 0; i--)
+                {
+                    if(key < records[i].key )
+                    {
+                        records[i + 1].ptr = records[i].ptr;
+                        records[i + 1].key = records[i].key;
+
+                        if(flush)
+                        {
+                            uint64_t records_ptr = (uint64_t)(&records[i + 1]);
+
+                            int remainder = records_ptr % CACHE_LINE_SIZE;
+                            bool do_flush = (remainder == 0) ||
+                                            ((((int)(remainder + sizeof(entry)) / CACHE_LINE_SIZE) == 1)
+                                             && ((remainder + sizeof(entry)) % CACHE_LINE_SIZE) != 0);
+                            if(do_flush)
+                            {
+                                clflush((char*)records_ptr, CACHE_LINE_SIZE);
+                                to_flush_cnt = 0;
+                            }
+                            else
+                                ++to_flush_cnt;
+                        }
+                    }
+                    else
+                    {
+                        records[i + 1].ptr = records[i].ptr;
+                        records[i + 1].key = key;
+                        records[i + 1].ptr = ptr;
+
+                        if(flush)
+                            clflush((char*)&records[i + 1], sizeof(entry));
+                        inserted = 1;
+                        break;
+                    }
+                }
+            }
+
             if(inserted == 0)
             {
                 records[0].ptr = (char*) hdr.leftmost_ptr;
@@ -654,29 +705,34 @@ public:
             }
         }
 
-        if(update_last_index)
+        //only if we have inserted new key do we need to update last index and
+        //number of entry
+        if(update_num)
         {
-            hdr.last_index = *num_entries;
+            if(update_last_index)
+            {
+                hdr.last_index = *num_entries;
+            }
+            ++(*num_entries);
         }
-        ++(*num_entries);
     }
 
     // Insert a new key - FAST and FAIR
-    page* store
-    (btree* bt, char* left, entry_key_t key, char* right,
-     bool flush, bool with_lock, page* invalid_sibling = NULL)
+    page* store(btree* bt, char* left, entry_key_t key, char* right, 
+			bool flush, bool with_lock, page* invalid_sibling = NULL)
     {
         if(with_lock)
         {
             hdr.mtx->lock(); // Lock the write lock
         }
+
         if(hdr.is_deleted)
         {
             if(with_lock)
             {
                 hdr.mtx->unlock();
             }
-
+			printf_error("page %p is already deleted, return NULL!", this);
             return NULL;
         }
 
@@ -690,8 +746,7 @@ public:
                 {
                     hdr.mtx->unlock(); // Unlock the write lock
                 }
-                return hdr.sibling_ptr->store(bt, NULL, key, right,
-                                              true, with_lock, invalid_sibling);
+                return hdr.sibling_ptr->store(bt, NULL, key, right, true, with_lock, invalid_sibling);
             }
         }
 
@@ -786,18 +841,15 @@ public:
                 {
                     hdr.mtx->unlock(); // Unlock the write lock
                 }
-                bt->btree_insert_internal(NULL, split_key, (char*)sibling,
-                                          hdr.level + 1);
+                bt->btree_insert_internal(NULL, split_key, (char*)sibling, hdr.level + 1);
             }
 
             return ret;
         }
-
     }
 
     // Search keys with linear search
-    void linear_search_range
-    (entry_key_t min, entry_key_t max, unsigned long* buf)
+    void linear_search_range(entry_key_t min, entry_key_t max, unsigned long* buf)
     {
         int i, off = 0;
         uint8_t previous_switch_counter;
@@ -1093,7 +1145,7 @@ public:
             printf("%p ", hdr.leftmost_ptr);
 
         for(int i = 0; records[i].ptr != NULL; ++i)
-            printf("%lu,%p ", records[i].key, records[i].ptr);
+            printf("[%lu,%p] ", records[i].key, records[i].ptr);
 
         printf("%p ", hdr.sibling_ptr);
 
@@ -1176,13 +1228,13 @@ void btree::btree_insert(entry_key_t key, char* right)  //need to be string
 
     if(!p->store(this, NULL, key, right, true, true))   // store
     {
-        btree_insert(key, right);
+        //btree_insert(key, right);
+		printf_error("page %p, key %lu, insert failed!", p, key);
     }
 }
 
 // store the key into the node at the given level
-void btree::btree_insert_internal
-(char* left, entry_key_t key, char* right, uint32_t level)
+void btree::btree_insert_internal(char* left, entry_key_t key, char* right, uint32_t level)
 {
     if(level > ((page*)root)->hdr.level)
         return;
@@ -1193,9 +1245,9 @@ void btree::btree_insert_internal
         p = (page*)p->linear_search(key);
 
     if(!p->store(this, NULL, key, right, true, true))
-    {
-        btree_insert_internal(left, key, right, level);
-    }
+	{
+		printf_error("page %p, key %lu, insert failed!", p, key);
+	}
 }
 
 void btree::btree_delete(entry_key_t key)
@@ -1217,21 +1269,23 @@ void btree::btree_delete(entry_key_t key)
 
     if(p)
     {
+		printf_warn("----------------page %p, before delete key %lu", p, key);
+		p->print();
         if(!p->remove(this, key))
         {
-            //btree_delete(key);
-			printf("key %lu is not in page %p\n", key, p);
+            printf_error("key %lu is not in page %p\n", key, p);
         }
+		printf_warn("----------------page %p, after delete key %lu", p, key);
+		p->print();
     }
     else
     {
-        printf("not found the key to delete %lu\n", key);
+        printf_error("not found the key to delete %lu\n", key);
     }
 }
 
-void btree::btree_delete_internal
-(entry_key_t key, char* ptr, uint32_t level, entry_key_t* deleted_key,
- bool* is_leftmost_node, page** left_sibling)
+void btree::btree_delete_internal(entry_key_t key, char* ptr, uint32_t level, 
+		entry_key_t* deleted_key, bool* is_leftmost_node, page** left_sibling)
 {
     if(level > ((page*)this->root)->hdr.level)
         return;
@@ -1254,16 +1308,21 @@ void btree::btree_delete_internal
 
     *is_leftmost_node = false;
 
+    printf_warn("page %p, before deleted_key %lu, value %p, left_sibling %p", p, *deleted_key, ptr, *left_sibling);
+    p->print();
     for(int i = 0; p->records[i].ptr != NULL; ++i)
     {
         if(p->records[i].ptr == ptr)
         {
+            printf_warn("we found target value %p, key %lu", ptr,  p->records[i].key);
             if(i == 0)
             {
                 if((char*)p->hdr.leftmost_ptr != p->records[i].ptr)
                 {
                     *deleted_key = p->records[i].key;
                     *left_sibling = p->hdr.leftmost_ptr;
+					//FIXME: with_lock should be true?
+                    //p->remove(this, *deleted_key, false, false);
                     p->remove(this, *deleted_key, false, false);
                     break;
                 }
@@ -1274,6 +1333,7 @@ void btree::btree_delete_internal
                 {
                     *deleted_key = p->records[i].key;
                     *left_sibling = (page*)p->records[i - 1].ptr;
+                    //p->remove(this, *deleted_key, false, false);
                     p->remove(this, *deleted_key, false, false);
                     break;
                 }
@@ -1281,12 +1341,13 @@ void btree::btree_delete_internal
         }
     }
 
+    printf_warn("page %p, after deleted_key %lu, value %p, left_sibling %p", p, *deleted_key, ptr, *left_sibling);
+    p->print();
     p->hdr.mtx->unlock();
 }
 
 // Function to search keys from "min" to "max"
-void btree::btree_search_range
-(entry_key_t min, entry_key_t max, unsigned long* buf)
+void btree::btree_search_range(entry_key_t min, entry_key_t max, unsigned long* buf)
 {
     page* p = (page*)root;
 
@@ -1301,7 +1362,6 @@ void btree::btree_search_range
         {
             // Found a leaf
             p->linear_search_range(min, max, buf);
-
             break;
         }
     }
