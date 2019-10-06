@@ -131,7 +131,7 @@ int main(int argc, char** argv)
 	elapsed_time /= 1000;
 	printf("Concurrent searching with %d threads, elapsed_time (usec): %lld, Avg: %f\n", 
 			n_threads, elapsed_time, (double)elapsed_time / num_data);	
-	bt->printAll();
+	//bt->printAll();
     clear_cache();
     futures.clear();
 

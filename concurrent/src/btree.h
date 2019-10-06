@@ -334,7 +334,6 @@ public:
                 {
                     hdr.mtx->unlock();
                 }
-                printf_warn("current page %p is root, after remove key %lu", this, key);
                 return ret;
             }
 
@@ -365,9 +364,6 @@ public:
         bt->btree_delete_internal(key, (char*)this, hdr.level + 1, &deleted_key_from_parent,
                                   &is_leftmost_node, &left_sibling);
 
-        printf_warn("after btree_delete_internal, deleted_key_from_parent %lu, is_leftmost_node %d, left_sibling %p",
-                    deleted_key_from_parent, is_leftmost_node, left_sibling);
-
         if(is_leftmost_node)
         {
             if(with_lock)
@@ -379,9 +375,8 @@ public:
             {
                 hdr.sibling_ptr->hdr.mtx->lock();
             }
-            printf_warn("sibling_ptr %p, before delete key %lu", hdr.sibling_ptr, hdr.sibling_ptr->records[0].key);
             hdr.sibling_ptr->remove(bt, hdr.sibling_ptr->records[0].key, true, with_lock);
-            //assert(hdr.sibling_ptr);
+			//FIXME: chech if sibling_prt is null
             if(!with_lock && hdr.sibling_ptr)
             {
                 hdr.sibling_ptr->hdr.mtx->unlock();
@@ -407,7 +402,6 @@ public:
 
         while(left_sibling->hdr.sibling_ptr != this)
         {
-            printf_warn("left_sibling->hdr.sibling_ptr = %p, this = %p", left_sibling->hdr.sibling_ptr, this);
             if(with_lock)
             {
                 page* t = left_sibling->hdr.sibling_ptr;
@@ -631,7 +625,6 @@ public:
             {
                 if(key == records[i].key)
                 {
-                    printf_warn("page %p, update key %lu", this, key);
                     records[i].ptr = ptr;
                     if(flush)
                     {
@@ -1269,14 +1262,10 @@ void btree::btree_delete(entry_key_t key)
 
     if(p)
     {
-        printf_warn("----------------page %p, before delete key %lu", p, key);
-        p->print();
         if(!p->remove(this, key))
         {
             printf_error("key %lu is not in page %p\n", key, p);
         }
-        printf_warn("----------------page %p, after delete key %lu", p, key);
-        p->print();
     }
     else
     {
@@ -1308,21 +1297,16 @@ void btree::btree_delete_internal(entry_key_t key, char* ptr, uint32_t level,
 
     *is_leftmost_node = false;
 
-    printf_warn("page %p, before deleted_key %lu, value %p, left_sibling %p", p, *deleted_key, ptr, *left_sibling);
-    p->print();
     for(int i = 0; p->records[i].ptr != NULL; ++i)
     {
         if(p->records[i].ptr == ptr)
         {
-            printf_warn("we found target value %p, key %lu", ptr,  p->records[i].key);
             if(i == 0)
             {
                 if((char*)p->hdr.leftmost_ptr != p->records[i].ptr)
                 {
                     *deleted_key = p->records[i].key;
                     *left_sibling = p->hdr.leftmost_ptr;
-                    //FIXME: with_lock should be true?
-                    //p->remove(this, *deleted_key, false, false);
                     p->remove(this, *deleted_key, false, false);
                     break;
                 }
@@ -1333,7 +1317,6 @@ void btree::btree_delete_internal(entry_key_t key, char* ptr, uint32_t level,
                 {
                     *deleted_key = p->records[i].key;
                     *left_sibling = (page*)p->records[i - 1].ptr;
-                    //p->remove(this, *deleted_key, false, false);
                     p->remove(this, *deleted_key, false, false);
                     break;
                 }
@@ -1341,8 +1324,6 @@ void btree::btree_delete_internal(entry_key_t key, char* ptr, uint32_t level,
         }
     }
 
-    printf_warn("page %p, after deleted_key %lu, value %p, left_sibling %p", p, *deleted_key, ptr, *left_sibling);
-    p->print();
     p->hdr.mtx->unlock();
 }
 
