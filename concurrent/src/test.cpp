@@ -146,9 +146,9 @@ int main(int argc, char** argv)
         {
             for(uint64_t i = from; i < to; ++i)
 			{
-			    printf_warn("delete index = %lu, key = %lu ... begin", i, keys[i]);
+			    //printf_warn("delete index = %lu, key = %lu ... begin", i, keys[i]);
                 bt->btree_delete(keys[i]);
-			    printf_warn("delete index = %lu, key = %lu ... OK", i, keys[i]);
+			    //printf_warn("delete index = %lu, key = %lu ... OK", i, keys[i]);
 			}
         }, from, to);
         futures.push_back(move(f));
@@ -162,7 +162,7 @@ int main(int argc, char** argv)
 	elapsed_time /= 1000;
 	printf("Concurrent deleting with %d threads, elapsed_time (usec): %lld, Avg: %f\n",
 			n_threads, elapsed_time, (double)elapsed_time / num_data);	
-	bt->printAll();
+	//bt->printAll();
 
 #else
 	long half_num_data = num_data / 2;
