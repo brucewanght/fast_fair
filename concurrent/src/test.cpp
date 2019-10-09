@@ -86,7 +86,7 @@ int main(int argc, char** argv)
 
         auto f = async(launch::async, [&bt, &keys](uint64_t from, uint64_t to)
         {
-            for(int i = from; i < to; ++i)
+            for(uint64_t i = from; i < to; ++i)
 			{
                 bt->btree_insert(keys[i], (char*) keys[i]);
 			}

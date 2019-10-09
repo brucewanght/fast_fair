@@ -194,9 +194,9 @@ public:
     {
         void* ret;
         int error = posix_memalign(&ret, 64, size);
-		if(error)
-			printf_error("posix_memalign: %s", strerror(error));
-		memset(ret, 0, size);
+        if(error)
+            printf_error("posix_memalign: %s", strerror(error));
+        memset(ret, 0, size);
         return ret;
     }
 
@@ -273,7 +273,7 @@ public:
         return shift;
     }
 
-	/*
+    /*
     bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
     {
       hdr.mtx->lock();
@@ -284,7 +284,7 @@ public:
 
       return ret;
     }
-	*/
+    */
 
     bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
     {
@@ -362,16 +362,16 @@ public:
             if(with_lock)
             {
                 hdr.mtx->unlock();
-				if(hdr.sibling_ptr)
-					hdr.sibling_ptr->remove(bt, hdr.sibling_ptr->records[0].key, true, with_lock);
+                if(hdr.sibling_ptr)
+                    hdr.sibling_ptr->remove(bt, hdr.sibling_ptr->records[0].key, true, with_lock);
             }
-			else
-			{
+            else
+            {
                 hdr.sibling_ptr->hdr.mtx->lock();
-				page* t = hdr.sibling_ptr;
-				hdr.sibling_ptr->remove(bt, hdr.sibling_ptr->records[0].key, true, with_lock);
-				t->hdr.mtx->unlock();
-			}
+                page* t = hdr.sibling_ptr;
+                hdr.sibling_ptr->remove(bt, hdr.sibling_ptr->records[0].key, true, with_lock);
+                t->hdr.mtx->unlock();
+            }
             return true;
         }
 
@@ -389,26 +389,26 @@ public:
         if(with_lock)
         {
             left_sibling->hdr.mtx->lock();
-			while(left_sibling->hdr.sibling_ptr != this)
-			{
-				page* t = left_sibling;
-				left_sibling = left_sibling->hdr.sibling_ptr;
-				t->hdr.mtx->unlock();
-				//FIXME: left_sibling can be null, why?
-				if(!left_sibling)
-					break;
-				left_sibling->hdr.mtx->lock();
-			}
+            while(left_sibling->hdr.sibling_ptr != this)
+            {
+                page* t = left_sibling;
+                left_sibling = left_sibling->hdr.sibling_ptr;
+                t->hdr.mtx->unlock();
+                //FIXME: left_sibling can be null, why?
+                if(!left_sibling)
+                    break;
+                left_sibling->hdr.mtx->lock();
+            }
         }
-		else
-		{
-			while(left_sibling->hdr.sibling_ptr != this)
-			{
-				left_sibling = left_sibling->hdr.sibling_ptr;
-				if(!left_sibling)
-					break;
-			}
-		}
+        else
+        {
+            while(left_sibling->hdr.sibling_ptr != this)
+            {
+                left_sibling = left_sibling->hdr.sibling_ptr;
+                if(!left_sibling)
+                    break;
+            }
+        }
 
         //FIXME: when left_sibling is null, what will happen?
         if(!left_sibling)
@@ -476,10 +476,10 @@ public:
                 if(left_sibling == ((page*)bt->root))
                 {
                     page* new_root = new page(left_sibling, parent_key, this, hdr.level + 1);
-					//FIXME: lock the root?
-					new_root->hdr.mtx->lock();
+                    //FIXME: lock the root?
+                    new_root->hdr.mtx->lock();
                     bt->setNewRoot((char*)new_root);
-					new_root->hdr.mtx->unlock();
+                    new_root->hdr.mtx->unlock();
                 }
                 else
                 {
@@ -542,10 +542,10 @@ public:
                 if(left_sibling == ((page*)bt->root))
                 {
                     page* new_root = new page(left_sibling, parent_key, new_sibling, hdr.level + 1);
-					//FIXME: lock root?
-					new_root->hdr.mtx->lock();
+                    //FIXME: lock root?
+                    new_root->hdr.mtx->lock();
                     bt->setNewRoot((char*)new_root);
-					new_root->hdr.mtx->unlock();
+                    new_root->hdr.mtx->unlock();
                 }
                 else
                 {
@@ -615,7 +615,7 @@ public:
             }
 
             //FIXME: first check if the key is already exist
-			for(i = *num_entries - 1; i >= 0; i--)
+            for(i = *num_entries - 1; i >= 0; i--)
             {
                 if(key == records[i].key)
                 {
@@ -815,10 +815,10 @@ public:
             {
                 page* new_root = new page((page*)this, split_key, sibling,
                                           hdr.level + 1);
-				//FIXME: lock root?
-				new_root->hdr.mtx->lock();
+                //FIXME: lock root?
+                new_root->hdr.mtx->lock();
                 bt->setNewRoot((char*)new_root);
-				new_root->hdr.mtx->unlock();
+                new_root->hdr.mtx->unlock();
 
                 if(with_lock)
                 {
@@ -1231,22 +1231,22 @@ void btree::btree_insert_internal(char* left, entry_key_t key, char* right, uint
 
     page* p = (page*)this->root;
 
-	assert(p);
+    assert(p);
     while(p->hdr.level > level)
-	{
+    {
         p = (page*)p->linear_search(key);
-	}
+    }
     //p->hdr.mtx->lock();
 
-	//printf_warn("page %p, before insert [%lu, %p]", p, key, right);
-	//p->print();
+    //printf_warn("page %p, before insert [%lu, %p]", p, key, right);
+    //p->print();
     if(!p->store(this, NULL, key, right, true, true))
     {
         //printf_error("page %p, key %lu, insert failed!", p, key);
-		//btree_insert_internal(left, key, right, level);
+        //btree_insert_internal(left, key, right, level);
     }
-	//printf_warn("page %p, after insert [%lu, %p]", p, key, right);
-	//p->print();
+    //printf_warn("page %p, after insert [%lu, %p]", p, key, right);
+    //p->print();
 }
 
 void btree::btree_delete(entry_key_t key)
@@ -1256,12 +1256,12 @@ void btree::btree_delete(entry_key_t key)
     while(p->hdr.leftmost_ptr != NULL)
     {
         p = (page*) p->linear_search(key);
-		//FIXME: p can be null, means we cannnot find the key in this page
-		if(!p)
-		{
-			//printf_error("key %lu is not in page %p", key, p);
-			return;
-		}
+        //FIXME: p can be null, means we cannnot find the key in this page
+        if(!p)
+        {
+            //printf_error("key %lu is not in page %p", key, p);
+            return;
+        }
     }
 
     page* t;
@@ -1296,12 +1296,12 @@ void btree::btree_delete_internal(entry_key_t key, char* ptr, uint32_t level,
     while(p->hdr.level > level)
     {
         p = (page*)p->linear_search(key);
-		//FIXME: p can be null, means we cannnot find the key in this page
-		if(!p)
-		{
+        //FIXME: p can be null, means we cannnot find the key in this page
+        if(!p)
+        {
             //printf_error("key %lu is not in page %p", key, p);
-			return;
-		}
+            return;
+        }
     }
 
     p->hdr.mtx->lock();
