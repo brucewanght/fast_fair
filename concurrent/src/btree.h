@@ -25,9 +25,9 @@
 #include <mutex>
 #include "debug.h"
 
-#define PAGESIZE 512
+#define PAGESIZE 1024
 
-#define CPU_FREQ_MHZ (1994)
+#define CPU_FREQ_MHZ (3900)
 #define DELAY_IN_NS (1000)
 #define CACHE_LINE_SIZE 64
 #define QUERY_NUM 25
@@ -61,7 +61,8 @@ unsigned long long search_time_in_insert = 0;
 unsigned int gettime_cnt = 0;
 unsigned long long clflush_time_in_insert = 0;
 unsigned long long update_time_in_insert = 0;
-int clflush_cnt = 0;
+unsigned int clflush_cnt = 0;
+unsigned long long clflush_data = 0;
 int node_cnt = 0;
 
 using namespace std;
@@ -81,7 +82,9 @@ inline void clflush(char* data, int len)
                              (unsigned long)(write_latency_in_ns * CPU_FREQ_MHZ / 1000);
         asm volatile("clflush %0" : "+m" (*(volatile char*)ptr));
         while (read_tsc() < etsc) cpu_pause();
-        //++clflush_cnt;
+		++clflush_cnt;
+		clflush_data += CACHE_LINE_SIZE;
+        ++clflush_cnt;
     }
     mfence();
 }
@@ -106,6 +109,7 @@ public:
     char* btree_search(entry_key_t);
     void btree_search_range(entry_key_t, entry_key_t, unsigned long*);
     void printAll();
+	void print_stat();
 
     friend class page;
 };
@@ -273,7 +277,6 @@ public:
         return shift;
     }
 
-    /*
     bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
     {
       hdr.mtx->lock();
@@ -284,8 +287,8 @@ public:
 
       return ret;
     }
-    */
 
+	/*
     bool remove(btree* bt, entry_key_t key, bool only_rebalance = false, bool with_lock = true)
     {
         if(with_lock)
@@ -580,6 +583,7 @@ public:
 
         return true;
     }
+    */
 
     inline void insert_key(entry_key_t key, char* ptr, int* num_entries, bool flush = true,
                            bool update_last_index = true)
@@ -1197,7 +1201,7 @@ char* btree::btree_search(entry_key_t key)
         }
     }
 
-    if(!t || (char*)t != (char*)key)
+    if(!t)
     {
         //printf("NOT FOUND %lu, t = %p\n", key, t);
         return NULL;
@@ -1391,4 +1395,24 @@ void btree::printAll()
 
     printf("total number of keys: %d\n", total_keys);
     pthread_mutex_unlock(&print_mtx);
+}
+
+void btree::print_stat()
+{
+    double gbc = 0.0, mbc = 0.0, kbc = 0.0; 
+    if(clflush_data > (1<<30))
+        gbc = (double)clflush_data/(1<<30);
+    else if(clflush_data > (1<<20))
+        mbc = (double)clflush_data/(1<<20);
+    else if(clflush_data > (1<<10))
+        kbc = (double)clflush_data/(1<<10);
+
+    if(gbc)
+        printf("clflush count = %u, clflush data size = %.4lf GB\n", clflush_cnt, gbc);
+    else if(mbc)
+        printf("clflush count = %u, clflush data size = %.4lf MB\n", clflush_cnt, mbc);
+    else if(kbc)
+        printf("clflush count = %u, clflush data size = %.4lf KB\n", clflush_cnt, kbc);
+    else 
+        printf("clflush count = %u, clflush data size = %llu B\n", clflush_cnt, clflush_data);
 }
