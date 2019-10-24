@@ -207,7 +207,7 @@ int main(int argc, char** argv)
                     {
                         pvalue = (entry_key_t*)bt->btree_search(keys[i]);
                         //printf_info("Thread %lx, key %lu, value %p, ori_value %p", pthread_self(), keys[i], pvalue, (char*)keys[i]);
-                        assert(pvalue == (entry_key_t*)keys[i]);
+                        //assert(pvalue == (entry_key_t*)keys[i]);
                     }
                 }
             }, from, to);
